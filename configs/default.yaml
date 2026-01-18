@@ -1,0 +1,148 @@
+# Default configuration for Pathological UTI Generation
+
+# ============================================================================
+# Data Configuration
+# ============================================================================
+data:
+  dataset: "auspeech"
+  data_dir: "data/auspeech"
+  audio_sr: 16000
+  uti_resolution: [112, 112]
+  num_frames: 15
+  train_split: 0.9
+  val_split: 0.1
+  num_workers: 8
+  
+  # Augmentation
+  augmentation:
+    time_masking: true
+    freq_masking: true
+    mixup_alpha: 0.2
+    spec_augment: true
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model:
+  # Module 1: Mode Embedding
+  mode_embedding:
+    num_modes: 2  # normal=0, pathological=1
+    embed_dim: 128
+    hidden_dim: 64
+    dropout: 0.1
+  
+  # Module 2: Adaptive Fusion
+  audio_encoder:
+    model_name: "facebook/wav2vec2-large-960h"
+    feat_dim: 1024
+    freeze: true
+    
+  text_encoder:
+    model_name: "bert-base-uncased"
+    feat_dim: 768
+    freeze: true
+    
+  fusion:
+    cross_attn_heads: 8
+    cross_attn_dim: 512
+    modulation_hidden: 256
+    dropout: 0.1
+  
+  # Module 3: EDM Diffusion
+  diffusion:
+    sigma_min: 0.002
+    sigma_max: 160.0
+    sigma_data: 0.25
+    rho: 7.0
+    
+  unet:
+    in_channels: 1
+    out_channels: 1
+    model_channels: 128
+    channel_mult: [1, 2, 4, 8]
+    num_res_blocks: 2
+    attn_resolutions: [16, 8]
+    dropout: 0.1
+    use_temporal_attn: true
+    
+  reference_encoder:
+    model_name: "resnet18"
+    feat_dim: 512
+    pretrained: true
+
+  # Sampling
+  sampling:
+    method: "heun"  # heun, euler, ddim
+    num_steps: 50
+    s_churn: 0.0
+    s_tmin: 0.0
+    s_tmax: float('inf')
+    s_noise: 1.0
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+training:
+  # Optimization
+  batch_size: 4
+  learning_rate: 5.0e-4
+  weight_decay: 1.0e-2
+  optimizer: "adamw"
+  scheduler: "cosine"
+  warmup_iterations: 10000
+  max_iterations: 5000000
+  
+  # Loss weights
+  loss:
+    diffusion_weight: 1.0
+    mode_weight: 0.5  # Balance normal/pathological
+    
+  # Gradient
+  grad_clip: 1.0
+  grad_accumulation_steps: 1
+  mixed_precision: true  # fp16
+  
+  # Checkpointing
+  save_interval: 50000
+  eval_interval: 10000
+  log_interval: 100
+  num_keep_ckpt: 5
+  
+  # Distributed
+  distributed: true
+  num_gpus: 8
+  backend: "nccl"
+
+# ============================================================================
+# Evaluation Configuration
+# ============================================================================
+evaluation:
+  metrics:
+    - "lpips"
+    - "psnr"
+    - "ssim"
+    - "fid"
+  
+  batch_size: 8
+  num_samples: 1000
+  save_visualizations: true
+  
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  project_name: "pathological-uti-generation"
+  experiment_name: "default"
+  log_dir: "logs"
+  use_wandb: true
+  use_tensorboard: true
+  
+# ============================================================================
+# System Configuration
+# ============================================================================
+system:
+  seed: 42
+  deterministic: false
+  benchmark: true
+  num_workers: 8
+  pin_memory: true
